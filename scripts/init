@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+if [[ $(git remote|grep ^heroku$ | wc -l) -ne 0 ]]; then
+	echo "😨 Heroku remote is already configured."
+	exit 1
+fi
+
+set -xeuo pipefail
+
+# local dev
+npm install
+
+# deploys
+heroku create
+heroku addons:create heroku-postgresql:hobby-dev
+
+# database
+scripts/db-migrate
+
+echo 🎉 Done! Run \`scripts/deploy\` to deploy.

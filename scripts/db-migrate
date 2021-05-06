@@ -1,0 +1,105 @@
+#!/usr/bin/env node
+const { execSync } = require("child_process");
+const { readFileSync, readdirSync } = require("fs");
+const { resolve } = require("path");
+
+process.env.DATABASE_URL = execSync("heroku config:get DATABASE_URL").toString().trim();
+if (!process.env.DATABASE_URL) {
+	throw new Error("Unable to get database connection string.");
+}
+
+const getDatabaseConnection = require("../server/lib/db");
+
+const MIGRATION_DIR = resolve(__dirname, "../sql");
+
+async function query(sql, vars = []) {
+	const db = await getDatabaseConnection({ multipleStatements: true });
+	const resp = await db.query(sql, vars);
+	return resp.rows;
+}
+
+function getMigrations() {
+	const migrations = readdirSync(MIGRATION_DIR).filter((filename) => filename.endsWith(".sql"));
+	migrations.sort();
+	return migrations;
+}
+
+function getMigrationVersion(filename) {
+	return parseInt(filename.split("-", 1)[0], 10);
+}
+
+async function getCurrentVersion() {
+	try {
+		const results = await query("select max(version) as currentversion from shinypbdb_migrations");
+		return results[0].currentversion ?? null;
+	} catch (err) {
+		if (err.message.includes('relation "shinypbdb_migrations" does not exist')) {
+			// Totally fine; start from the beginning
+			return null;
+		}
+
+		throw err;
+	}
+}
+
+async function main() {
+	const currentVersion = await getCurrentVersion();
+	const allMigrations = getMigrations();
+	if (!allMigrations.length) {
+		console.log("No migrations exist, nothing to do.");
+		process.exit(0);
+	}
+
+	const newestVersion = getMigrationVersion(allMigrations[allMigrations.length - 1]);
+	if (currentVersion === null) {
+		console.log("Starting from the beginning");
+	} else if (newestVersion === currentVersion) {
+		console.log("Already up-to-date at version", currentVersion);
+		process.exit(0);
+	} else if (newestVersion < currentVersion) {
+		console.warn(
+			"Already at version",
+			currentVersion,
+			"which is newer than the last migration",
+			newestVersion,
+			"; something is weird."
+		);
+		process.exit(1);
+	}
+
+	const pendingMigrations =
+		currentVersion === null
+			? allMigrations
+			: allMigrations.filter((migration) => getMigrationVersion(migration) > currentVersion);
+
+	let prevVersion = currentVersion;
+	for (let migration of pendingMigrations) {
+		const nextVersion = getMigrationVersion(migration);
+		console.log("Migrating from", prevVersion ?? "nothing", "->", nextVersion, "(", migration, ")");
+		prevVersion = nextVersion;
+
+		const sql = readFileSync(resolve(MIGRATION_DIR, migration)).toString();
+
+		try {
+			const { result } = await query(sql);
+		} catch (err) {
+			console.error("Error running migration", migration, ":", err.message);
+			process.exit(1);
+		}
+
+		try {
+			await query("insert into shinypbdb_migrations (version) values ($1)", [nextVersion]);
+		} catch (err) {
+			console.error("Error updating versions table to version", nextVersion, ":", err.message);
+			process.exit(1);
+		}
+	}
+
+	console.log("Successfully migrated to version", newestVersion);
+	process.exit(0);
+}
+
+main().catch((err) => {
+	console.error(err);
+	process.exit(1);
+});

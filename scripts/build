@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -xeuo pipefail
+
+npx parcel build client/html/index.html
+echo $SOURCE_VERSION > version.txt

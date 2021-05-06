@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+if [[ $(git remote|grep ^heroku$ | wc -l) -ne 1 ]]; then
+	echo "😨 No heroku remote configured; run \`scripts/init\` first."
+	exit 1
+fi
+
+if [[ $(git status --porcelain | wc -l) -gt 0 ]]; then
+	echo "🥵 Cannot deploy when there are uncommitted changes."
+	exit 1
+fi
+
+# install error handler
+function unexpected_exit {
+  osascript -e 'set appTitle to do shell script "basename $(pwd)"' -e 'display notification "⚠️ Deploy failed." with title appTitle'
+}
+trap unexpected_exit EXIT
+
+# deploy
+set -xeuo pipefail
+git push -f heroku main
+
+# success! clean up and notify
+trap - EXIT
+osascript -e 'set appTitle to do shell script "basename $(pwd)"' -e 'display notification "🎉 Deployed successfully." with title appTitle'
+echo "🎉 Deployed successfully."
