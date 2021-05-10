@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS swasm_jobs (
 	id serial,
 	payload bytea,
 	code bytea,
-	start_ts numeric(9,2),
-	end_ts numeric(9,2),
+	result bytea,
+	start_ts integer,
+	end_ts integer,
 	PRIMARY KEY( id )
 );

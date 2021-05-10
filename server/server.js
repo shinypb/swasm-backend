@@ -1,6 +1,5 @@
 const express = require("express");
 require('express-async-errors');
-const bodyParser = require('body-parser');
 const multer = require('multer');
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
@@ -78,6 +77,53 @@ async function getJob(jobId) {
 	const resp = await db.query("select * from swasm_jobs where id = $1", [ jobId ]);
 	return resp.rows[0];
 }
+
+async function claimJob() {
+	// todo rewrite this to use transactions to avoid potential contention if two clients try to claim a job at the same time
+
+	const db = await getDatabaseConnection();
+	const availableResp = await db.query("select id from swasm_jobs where start_ts = 0 limit 1");
+	if (!availableResp.rows.length) return null;
+
+	const jobId = availableResp.rows[0].id;
+	const startTime = Math.floor(Date.now() / 1000);
+	console.log([startTime, jobId]);
+	const claimResp = await db.query("update swasm_jobs set start_ts = $1 where id = $2 and start_ts = 0", [startTime, jobId]);
+	console.log(claimResp);
+	if (claimResp.rowCount !== 1) return null; // this would happen if someone else claimed this job at the same moment
+
+	return jobId;
+}
+
+app.get("/jobs/claim", async (req, res) => {
+	res.header("Content-Type", "application/json");
+
+	const jobId = await claimJob();
+	if (jobId) {
+		res.send(JSON.stringify({ ok: true, jobId }));
+	} else {
+		res.send(JSON.stringify({ ok: false, error: "no_available_jobs" }));
+	}
+});
+
+app.post("/jobs/:jobId/finish", upload.single("result"), async (req, res) => {
+	res.header("Content-Type", "application/json");
+
+	const jobId = req.params.jobId;
+	const resultHex = req.file.buffer.toString('hex');
+
+	const endTime = Math.floor(Date.now() / 1000);
+	const db = await getDatabaseConnection();
+	const resp = await db.query(
+		"update swasm_jobs set end_ts = $2, result = decode($3, 'hex') where id = $1 and end_ts = 0",
+		[jobId, endTime, resultHex],
+	);
+	if (resp.rowCount === 1) {
+		res.send(JSON.stringify({ ok: true }));
+	} else {
+		res.send(JSON.stringify({ ok: false, error: 'job_not_eligible_for_completion' }));
+	}
+});
 
 app.get("/jobs/:jobId/code", async (req, res) => {
 	const { jobId } = req.params;
