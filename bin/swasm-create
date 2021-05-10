@@ -5,7 +5,7 @@ require "net/http"
 unless ARGV.size == 1
 	EXAMPLE_JOBDEF = {
 		version: 1,
-		payload: "any JSON object",
+		payload: "./path/to/any/file/you/want",
 		code: "./path/to/a/local/file.wasm",
 	}
 	puts "usage: #{File.basename(__FILE__)} ./path/to/an/example.jobdef"
@@ -36,8 +36,6 @@ begin
 
 	# Submit job
 	uri = URI('http://localhost:8000/jobs/create')
-	# uri = URI('http://scooterlabs.com/echo')
-	# uri = URI('https://markchristian.org/dump.php')
 	request = Net::HTTP::Post.new(uri)
 	form_data = [
 		['payload', File.open(payload_filename)],
@@ -49,6 +47,10 @@ begin
 	end
 
 	puts response.body
+	resp = JSON.parse(response.body)
+	if resp['ok']
+		puts "If you want to run this specific job: http://localhost:8000/##{resp['jobId']}"
+	end
 
 #rescue => e
 	# puts "Error: #{e}"

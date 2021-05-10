@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "payload": "hello-world.txt",
+  "code": "hello-world.wasm"
+}

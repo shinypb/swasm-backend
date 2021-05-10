@@ -12,7 +12,7 @@ self.onmessage = async ({ data }) => {
 	let instance;
 	let payload;
 	if (data.payloadUrl) {
-		payload = await fetch(payloadUrl).then(response => response.arrayBuffer());
+		payload = await fetch(data.payloadUrl).then(response => response.arrayBuffer());
 	} else {
 		payload = data.payload;
 	}

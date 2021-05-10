@@ -11,6 +11,8 @@ async function claimJob() {
 }
 
 (async () => {
+	window.onhashchange = () => location.reload();
+
 	const jobId = await claimJob();
 	if (!jobId) {
 		console.error("[SCHEDULER] No jobs available");
