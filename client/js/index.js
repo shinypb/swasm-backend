@@ -1,70 +1,74 @@
-import React from 'react';
-import ReactDOM from 'react-dom';
-
-class StatusList extends React.Component {
-	constructor(props) {
-		super(props);
-		this.state = {
-			js: true,
-			static: undefined,
-			db: undefined,
-		};
-	}
-
-	componentDidMount() {
-		let dbTimeout = setTimeout(() => this.setState({ "db": false }), 1000);
-		fetch("/db").then(async (resp) => {
-			const status = await resp.json();
-			if (!status.ok) throw new Error("status not ok");
-			return true;
-		}).catch(() => false).then((ok) => {
-			this.setState({ "db": !!ok });
-			clearTimeout(dbTimeout);
-			dbTimeout = undefined;
-		});
-
-		let staticTimeout = setTimeout(() => this.setState({ "static": false }), 1000);
-		fetch("/static.json").then(async (resp) => {
-			const status = await resp.json();
-			if (!status.ok) throw new Error("status not ok");
-			return true;
-		}).catch(() => false).then((ok) => {
-			this.setState({ "static": !!ok });
-			clearTimeout(staticTimeout);
-			staticTimeout = undefined;
-		});
-	}
-
-	render() {
-		let dbStatus;
-		if (this.state.db === undefined) {
-			dbStatus = '-';
-		} else if (this.state.db) {
-			dbStatus = '💚 Database is working.';
-		} else {
-			dbStatus = '💔 Database is not working.';
-		}
-
-		let staticStatus;
-		if (this.state.static === undefined) {
-			staticStatus = '-'
-		} else if (this.state.static) {
-			staticStatus = '💚 Static files are working.';
-		} else {
-			staticStatus = '💔 Static files are not working.';
-		}
-
-		return <>
-			<p key="js">💚 JavaScript is working.</p>
-			<p key="db">{dbStatus}</p>
-			<p key="static">{staticStatus}</p>
-		</>;
-	}
+function stringToUint8Array(str) {
+	const encoder = new TextEncoder();
+	return encoder.encode(str);
 }
 
-ReactDOM.render(
-	<StatusList />,
-	document.getElementById('js'),
-);
+async function claimJob() {
+	const resp = await fetch("/jobs/claim").then(response => response.json())
+	if (resp.ok) return resp.jobId;
+	if (resp.error == "no_available_jobs") return null;
+	throw new Error(resp.error);
+}
 
-console.log("Hello, world!");
+(async () => {
+	const jobId = await claimJob();
+	if (!jobId) {
+		console.error("[SCHEDULER] No jobs available");
+		return;
+	}
+
+	console.log("[SCHEDULER] Claimed job", jobId);
+
+	const MAX_RUNTIME_MS = 5000*100;
+	console.log("[SCHEDULER] Creating new runner");
+	const runner = new Worker("/runner.js", {
+		type: "module",
+		credentials: "omit",
+		name: `runner${jobId}`,
+	});
+
+	let jobTimeout;
+	let jobStartTime;
+	const stopRunner = () => {
+		runner.onmessage = undefined;
+		runner.onerror = undefined;
+		runner.terminate();
+		console.log("[SCHEDULER] Job stopped after", Math.ceil(performance.now() - jobStartTime), "ms");
+
+		clearTimeout(jobTimeout);
+		jobTimeout = undefined;
+	};
+	runner.onmessage = (e) => {
+		if (e.data.type !== 'complete') {
+			runner.onerror(e.data);
+			return;
+		}
+
+		let resultReadable;
+		try {
+			const decoder = new TextDecoder();
+			resultReadable = decoder.decode(e.data.result);
+		} catch {
+			resultReadable = e.data.result.join(',');
+		}
+
+		console.log("[SCHEDULER] Worker completed successfully:", resultReadable);
+		stopRunner();
+	};
+	runner.onerror = (e) => {
+		console.error("[SCHEDULER] Runner encountered an error", e.error || e);
+		stopRunner();
+	};
+	jobTimeout = setTimeout(() => {
+		console.error("[SCHEDULER] Runner took too long");
+		stopRunner();
+	}, MAX_RUNTIME_MS);
+
+	jobStartTime = performance.now();
+	const job = {
+		codeUrl: `/jobs/${jobId}/code`,
+		payloadUrl: `jobs/${jobId}/payload`,
+	};
+	console.log("[SCHEDULER] Sending job to runner", job);
+	runner.postMessage(job);
+})();

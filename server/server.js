@@ -82,7 +82,7 @@ async function claimJob() {
 	// todo rewrite this to use transactions to avoid potential contention if two clients try to claim a job at the same time
 
 	const db = await getDatabaseConnection();
-	const availableResp = await db.query("select id from swasm_jobs where start_ts = 0 limit 1");
+	const availableResp = await db.query("select id from swasm_jobs where start_ts = 0 order by id asc limit 1");
 	if (!availableResp.rows.length) return null;
 
 	const jobId = availableResp.rows[0].id;
