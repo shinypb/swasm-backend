@@ -4,6 +4,9 @@ function stringToUint8Array(str) {
 }
 
 async function claimJob() {
+	const override = parseInt(location.hash.replace(/^#/, ''), 10);
+	if (isFinite(override) && override > 0) return override;
+
 	const resp = await fetch("/jobs/claim").then(response => response.json())
 	if (resp.ok) return resp.jobId;
 	if (resp.error == "no_available_jobs") return null;
