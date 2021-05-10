@@ -1,0 +1,29 @@
+#!/usr/bin/env ruby
+# usage: compile foo, where 'foo' is the basename of a file like ./jobs/foo.ts
+unless ARGV.size == 1
+	puts "usage: compile path/to/file.ts"
+	abort
+end
+
+src = ARGV.first
+unless File.exist?(src)
+	puts "Not found: #{src}"
+	abort
+end
+unless src.end_with?('.ts')
+	puts "Expected file to have a .ts extension"
+	abort
+end
+dest_wasm = src.gsub(/\.ts$/, '.wasm')
+dest_wat = src.gsub(/\.ts$/, '.wat')
+
+puts `npx asc #{src} -b #{dest_wasm} -t #{dest_wat}`
+unless $?.exitstatus == 0
+	puts "Compilation failed"
+	abort
+end
+
+puts File.read(dest_wat)
+puts "👆 That's your code as a vaguely human-readable WebAssembly text format."
+puts "👉 Your actual binary has been written to #{dest_wasm}"
+puts "😎"

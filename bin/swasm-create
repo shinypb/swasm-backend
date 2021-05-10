@@ -1,0 +1,56 @@
+#!/usr/bin/env ruby
+require "json"
+require "net/http"
+
+unless ARGV.size == 1
+	EXAMPLE_JOBDEF = {
+		version: 1,
+		payload: "any JSON object",
+		code: "./path/to/a/local/file.wasm",
+	}
+	puts "usage: #{File.basename(__FILE__)} ./path/to/an/example.jobdef"
+	puts ""
+	puts "Example jobdef file:"
+	puts JSON.pretty_generate(EXAMPLE_JOBDEF)
+	abort
+end
+
+begin
+	jobdef_filename = File.expand_path(ARGV.first)
+
+	# Read and validate job
+	jobdef = JSON.parse(File.read(jobdef_filename))
+	raise "Jobdef cannot be empty" if jobdef == nil
+	raise "'version' must be 1" unless jobdef["version"] == 1
+	raise "'code' must not be empty" unless jobdef.has_key?("code")
+	code_filename = File.expand_path(jobdef["code"], File.dirname(jobdef_filename))
+	raise "'code' points to a non-existent file (#{code_filename})" unless File.exist?(code_filename)
+	raise "'payload' must not be empty" unless jobdef.has_key?("payload")
+	payload_filename = File.expand_path(jobdef["payload"], File.dirname(jobdef_filename))
+	raise "'payload' points to a non-existent file (#{payload_filename})" unless File.exist?(payload_filename)
+
+
+	File.open(code_filename, "r") do |fp|
+		raise "'code' points to a non-WASM file" unless fp.read(4) === "\x00asm"
+	end
+
+	# Submit job
+	uri = URI('http://localhost:8000/jobs/create')
+	# uri = URI('http://scooterlabs.com/echo')
+	# uri = URI('https://markchristian.org/dump.php')
+	request = Net::HTTP::Post.new(uri)
+	form_data = [
+		['payload', File.open(payload_filename)],
+		['code', File.open(code_filename)]
+	]
+	request.set_form form_data, 'multipart/form-data'
+	response = Net::HTTP.start(uri.hostname, uri.port) do |http|
+	  http.request(request)
+	end
+
+	puts response.body
+
+#rescue => e
+	# puts "Error: #{e}"
+end
+

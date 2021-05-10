@@ -10,7 +10,7 @@ fi
 if [[ "${NODE_ENV}" = "development" ]]; then
 	export DATABASE_URL=$(heroku config:get DATABASE_URL)
 	echo "Starting development server"
-	npx concurrently --prefix name --names express,parcel --prefix-colors cyan,green --kill-others 'npx nodemon -w server/ -w package-lock.json -V server/server.js' 'npx parcel watch --hmr-port 9999 -- client/html/index.html'
+	npx concurrently --prefix name --names express,parcel --prefix-colors cyan,green --kill-others 'npx nodemon -w server/ -w package-lock.json -V server/server.js' 'npx parcel watch --hmr-port 9999 -- client/html/*.html'
 elif [[ "${NODE_ENV}" = "production" ]]; then
 	echo "Starting production server"
 	node server/server.js

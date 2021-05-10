@@ -11,7 +11,8 @@ const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 8000;
 
 app.use(express.static("dist"));	// parcel artifacts
 app.use(express.static("public"));	// static files checked into git
-app.get("/", (req, res) => res.sendFile("../dist/index.html"));
+app.get("/", (req, res) => res.sendFile(path.resolve(__dirname, "../dist/index.html")));
+app.get("/debug", (req, res) => res.sendFile(path.resolve(__dirname, "../dist/debug.html")));
 
 // Test endpoint
 app.get("/hello", (req, res) => res.send("hi"));

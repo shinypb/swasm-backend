@@ -2,6 +2,8 @@
 	"name": "src",
 	"version": "1.0.0",
 	"dependencies": {
+		"assemblyscript": "^0.18.31",
+		"assemblyscript-json": "^1.0.0",
 		"autoprefixer": "^9.8.6",
 		"body-parser": "^1.19.0",
 		"express": "^4.17.1",

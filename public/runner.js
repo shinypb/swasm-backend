@@ -5,13 +5,17 @@ function log(...args) {
 log("Runner started; waiting for job");
 
 self.onmessage = async ({ data }) => {
-	const { codeUrl, payloadUrl } = data;
-	if (!codeUrl) throw new Error("Job is missing 'codeUrl'")
-	if (!payloadUrl) throw new Error("Job is missing 'payloadUrl'");
+	if (!data.codeUrl) throw new Error("Job is missing 'codeUrl'")
+	if ((!data.payload && !data.payloadUrl) || (data.payload && data.payloadUrl)) throw new Error("Job must have either 'payload' or 'payloadUrl' but not both");
 	log("Received job request");
 
 	let instance;
-	const payload = await fetch(payloadUrl).then(response => response.arrayBuffer());
+	let payload;
+	if (data.payloadUrl) {
+		payload = await fetch(payloadUrl).then(response => response.arrayBuffer());
+	} else {
+		payload = data.payload;
+	}
 	const memory = new WebAssembly.Memory({ initial: 1 });
 
 	function finish(resultPointer, resultLength) {
@@ -63,8 +67,8 @@ self.onmessage = async ({ data }) => {
 		}
 	};
 
-	log("Fetching code", codeUrl);
-	fetch(codeUrl).then(response => response.arrayBuffer()).then((bytes) =>
+	log("Fetching code", data.codeUrl);
+	fetch(data.codeUrl).then(response => response.arrayBuffer()).then((bytes) =>
 		WebAssembly.instantiate(bytes, importObject)
 	).then((obj) => {
 			instance = obj.instance;
