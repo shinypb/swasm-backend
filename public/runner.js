@@ -62,7 +62,7 @@ self.onmessage = async ({ data }) => {
 				destArray.set(srcArray);
 				const decoder = new TextDecoder();
 				const msg = decoder.decode(buffer);
-				console.log("[JOB DEBUG]", "msg");
+				console.log("[JOB DEBUG]", msg);
 				sendResponse(new ArrayBuffer(0));
 				break;
 			}
