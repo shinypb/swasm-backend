@@ -3,5 +3,7 @@
 .parcel-cache
 dist
 node_modules
+*.wasm
+*.wat
 
 
