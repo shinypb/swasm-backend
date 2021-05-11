@@ -31,16 +31,32 @@ self.onmessage = async ({ data }) => {
 
 	let nextServiceRequestId = 1999;
 	function requestService(serviceType, payloadPointer, payloadLength) {
+		debugger
 		const serviceRequestId = nextServiceRequestId++;
+		const EMPTY_RESPONSE = [0, 0];
 
-		function sendResponse(buffer) {
+		// function sendAsyncResponse(buffer) { // TODO finish this, needs to return an ArrayBuffer containing i32 callback id
+		// 	const [destPointer, destLength] = syncResponse(buffer);
+		// 	setTimeout(() => {
+		// 		instance.exports.asyncServiceResponseCallback(serviceRequestId, destPointer, destLength);
+		// 	}, 0);
+		// }
+
+		function syncResponse(buffer) {
 			const srcArray = new Uint8Array(buffer);
 			const destPointer = instance.exports.allocateBytes(buffer.byteLength);
 			const destArray = new Uint8Array(instance.exports.memory.buffer, destPointer, srcArray.length);
 			destArray.set(srcArray);
-			setTimeout(() => {
-				instance.exports.serviceResponse(serviceRequestId, destPointer, srcArray.length);
-			}, 0);
+
+			// then, we need to return a two item array containing destPointer and srcArray.length
+			const respArray = new Uint32Array(2);
+			respArray[0] = destPointer;
+			respArray[1] = srcArray.length;
+			debugger
+			const respDestPointer = instance.exports.allocateBytes(respArray.buffer.byteLength);
+			const respDestArray = new Uint32Array(instance.exports.memory.buffer, respDestPointer, respArray.buffer.byteLength);
+			respDestArray.set(respArray);
+			return respDestPointer;
 		}
 
 		const GET_CURRENT_TIME = 1;
@@ -50,8 +66,8 @@ self.onmessage = async ({ data }) => {
 				const buffer = new ArrayBuffer(8);
 				const view = new DataView(buffer);
 				view.setBigUint64(0, BigInt(Date.now()));
-				sendResponse(buffer);
-				break;
+				debugger
+				return syncResponse(buffer);
 			}
 			case DEBUG_LOG_MESSAGE: {
 				if (!DEBUG_MODE) return;
@@ -63,14 +79,13 @@ self.onmessage = async ({ data }) => {
 				const decoder = new TextDecoder();
 				const msg = decoder.decode(buffer);
 				console.log("[JOB DEBUG]", msg);
-				sendResponse(new ArrayBuffer(0));
-				break;
+				return EMPTY_RESPONSE;
 			}
 			default:
 				throw new Error(`Unsupported service type ${serviceType}`);
 		}
 
-		return serviceRequestId;
+		return EMPTY_RESPONSE;
 	}
 
 	const importObject = {

@@ -20,25 +20,63 @@ export function freeBytes(ptr: usize): void {
 	heap.free(ptr);
 }
 
-const DEBUG_LOG_MESSAGE = 4;
+export const SVC_FINISH = 0;
+export const SVC_GET_CURRENT_TIME = 1;
+export const SVC_HTTP_FETCH = 2;
+export const SVC_GET_RANDOM = 3;
+export const SVC_DEBUG_LOG_MESSAGE = 4;
+
+export function getCurrentTime(): i64 {
+	debugMessage("in getCurrentTime");
+	const data = requestHostService(SVC_GET_CURRENT_TIME);
+	debugMessage("got data back");
+	const time = (new DataView(data)).getInt64(0);
+	return time;
+}
+
 export function debugMessage(str: String): void {
-	requestHostService(DEBUG_LOG_MESSAGE, String.UTF8.encode(str));
+	requestHostService(SVC_DEBUG_LOG_MESSAGE, String.UTF8.encode(str));
+}
+
+function unwrapServiceResponse(ptr: i32): ArrayBuffer {
+	if (ptr === 0) return new ArrayBuffer(0);
+
+	// A service response is always a two item Uint32Array
+	const SERVICE_RESPONSE_SIZE = 2;
+	const respData = new Uint32Array(SERVICE_RESPONSE_SIZE);
+	memory.copy(respData.dataStart, ptr, respData.buffer.byteLength);
+
+	// The first item of the array is a pointer to the result, and the second is its length
+	const dataPointer = respData[0];
+	const dataLength = respData[1];
+	const serviceData = new Uint8Array(dataLength);
+	memory.copy(serviceData.dataStart, dataPointer, dataLength);
+
+	return serviceData.buffer;
+}
+
+export function requestHostService(
+	serviceType: i32,
+	paramBuffer: ArrayBuffer = new ArrayBuffer(0),
+): ArrayBuffer {
+	const paramArray = Uint8Array.wrap(paramBuffer);
+	return unwrapServiceResponse(requestService(serviceType, paramArray.dataStart, paramArray.byteLength));
 }
 
 type HostServiceCallback = (id: i32, data: ArrayBuffer) => void;
 const pendingCallbacks = new Map<i32, HostServiceCallback>();
-export function requestHostService(
+export function requestHostServiceAsync(
 	serviceType: i32,
-	paramBuffer: ArrayBuffer,
+	paramBuffer: ArrayBuffer = new ArrayBuffer(0),
 	callback: HostServiceCallback = () => {},
-): i32 {
-	const paramArray = Uint8Array.wrap(paramBuffer);
-	const id = requestService(serviceType, paramArray.dataStart, paramArray.byteLength);
+): void {
+	const resp = requestHostService(serviceType, paramBuffer);
+	const dataView = new DataView(resp);
+	const id = dataView.getInt32(0);
 	pendingCallbacks.set(id, callback);
-	return id;
 }
 
-export function serviceResponse(id: i32, ptr: usize, size: i32): void {
+export function asyncServiceResponseCallback(id: i32, ptr: usize, size: i32): void {
 	if (!pendingCallbacks.has(id)) return; // no one is waiting for this?
 
 	const data = new Uint8Array(size);
