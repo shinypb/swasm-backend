@@ -20,12 +20,17 @@ export function freeBytes(ptr: usize): void {
 	heap.free(ptr);
 }
 
+const DEBUG_LOG_MESSAGE = 4;
+export function debugMessage(str: String): void {
+	requestHostService(DEBUG_LOG_MESSAGE, String.UTF8.encode(str));
+}
+
 type HostServiceCallback = (id: i32, data: ArrayBuffer) => void;
 const pendingCallbacks = new Map<i32, HostServiceCallback>();
 export function requestHostService(
 	serviceType: i32,
 	paramBuffer: ArrayBuffer,
-	callback: HostServiceCallback,
+	callback: HostServiceCallback = () => {},
 ): i32 {
 	const paramArray = Uint8Array.wrap(paramBuffer);
 	const id = requestService(serviceType, paramArray.dataStart, paramArray.byteLength);

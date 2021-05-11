@@ -5,6 +5,7 @@ function log(...args) {
 log("Runner started; waiting for job");
 
 self.onmessage = async ({ data }) => {
+	const DEBUG_MODE = !!data.debugMode;
 	if (!data.codeUrl) throw new Error("Job is missing 'codeUrl'")
 	if ((!data.payload && !data.payloadUrl) || (data.payload && data.payloadUrl)) throw new Error("Job must have either 'payload' or 'payloadUrl' but not both");
 	log("Received job request");
@@ -43,13 +44,28 @@ self.onmessage = async ({ data }) => {
 		}
 
 		const GET_CURRENT_TIME = 1;
+		const DEBUG_LOG_MESSAGE = 4;
 		switch (serviceType) {
-			case GET_CURRENT_TIME:
+			case GET_CURRENT_TIME: {
 				const buffer = new ArrayBuffer(8);
 				const view = new DataView(buffer);
 				view.setBigUint64(0, BigInt(Date.now()));
 				sendResponse(buffer);
 				break;
+			}
+			case DEBUG_LOG_MESSAGE: {
+				if (!DEBUG_MODE) return;
+
+				const buffer = new ArrayBuffer(payloadLength);
+				const destArray = new Uint8Array(buffer);
+				const srcArray = new Uint8Array(instance.exports.memory.buffer, payloadPointer, payloadLength);
+				destArray.set(srcArray);
+				const decoder = new TextDecoder();
+				const msg = decoder.decode(buffer);
+				console.log("[JOB DEBUG]", "msg");
+				sendResponse(new ArrayBuffer(0));
+				break;
+			}
 			default:
 				throw new Error(`Unsupported service type ${serviceType}`);
 		}

@@ -30,5 +30,6 @@ function stringToUint8Array(str) {
 		jobId,
 		codeUrl,
 		payload: PAYLOADS[jobName] ? stringToUint8Array(PAYLOADS[jobName]) : new Uint8Array(0),
+		debugMode: true,
 	});
 })();
