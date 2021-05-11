@@ -36,6 +36,7 @@ Open that URL up and you should see your customized greeting.
 
 0. Open up `public/jobs/hello-world.ts`
 1. Change the word "Hello" to "Ahoy" and save the file
+2. Compile the code with `bin/compile public/jobs/hello-world.ts`
 
 Repeat the steps from above to enqueue a job with your new code.
 
