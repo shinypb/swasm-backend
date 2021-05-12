@@ -109,6 +109,24 @@ self.onmessage = async ({ data }) => {
 				view.setBigUint64(0, BigInt(Date.now()));
 				return syncResponse(buffer);
 			}
+			case SVC_HTTP_FETCH: {
+				// TODO mechanism for making job authors prove that they have control over the domain we're about
+				// to hit, so people can't use this service to DDoS random web sites.
+				const decoder = new TextDecoder();
+				const url = decoder.decode(payloadBuffer);
+				return asyncResponse(
+					fetch(url).then(resp => resp.arrayBuffer())
+				);
+			}
+			case SVC_GET_RANDOM: {
+				const view = new DataView(payloadBuffer);
+				const numBytes = view.getUint32(0);
+				const buffer = new Uint8Array(numBytes);
+				for (let i = 0; i < numBytes; i++) {
+					buffer[i] = Math.floor(Math.random() * 256);
+				}
+				return syncResponse(buffer);
+			}
 			case SVC_DEBUG_LOG_MESSAGE: {
 				if (!DEBUG_MODE) return;
 				const decoder = new TextDecoder();
@@ -117,10 +135,9 @@ self.onmessage = async ({ data }) => {
 				return EMPTY_RESPONSE;
 			}
 			case SVC_PING: {
-				const p = new Promise((resolve) => {
+				return asyncResponse(new Promise((resolve) => {
 					resolve(payloadBuffer);
-				});
-				return asyncResponse(p);
+				}));
 			}
 			default:
 				throw new Error(`Unsupported service type ${serviceType}`);

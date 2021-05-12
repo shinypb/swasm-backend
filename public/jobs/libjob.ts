@@ -24,12 +24,26 @@ export const SVC_GET_RANDOM = 3;
 export const SVC_DEBUG_LOG_MESSAGE = 4;
 export const SVC_PING = 5;
 
+export function httpFetch(url: string, callback: (data: ArrayBuffer) => void): void {
+	requestHostServiceAsync(
+		SVC_HTTP_FETCH,
+		String.UTF8.encode(url),
+		callback,
+	);
+}
+
 export function getCurrentTime(): i64 {
-	debugMessage("in getCurrentTime");
 	const data = requestHostService(SVC_GET_CURRENT_TIME);
-	debugMessage("got data back");
 	const time = (new DataView(data)).getInt64(0);
 	return time;
+}
+
+export function getRandom(numBytes: i32 = 1): Uint8Array {
+	const paramBuffer = new ArrayBuffer(sizeof<i32>());
+	const view = new DataView(paramBuffer);
+	view.setUint32(0, numBytes);
+	const buffer = requestHostService(SVC_GET_RANDOM, paramBuffer);
+	return Uint8Array.wrap(buffer);
 }
 
 export function debugMessage(str: String): void {
@@ -43,6 +57,8 @@ function unwrapServiceResponse(ptr: i32): ArrayBuffer {
 	const SERVICE_RESPONSE_SIZE = 2;
 	const respData = new Uint32Array(SERVICE_RESPONSE_SIZE);
 	memory.copy(respData.dataStart, ptr, respData.buffer.byteLength);
+
+	// TODO: free the memory at ptr
 
 	// The first item of the array is a pointer to the result, and the second is its length
 	const dataPointer = respData[0];
@@ -120,5 +136,5 @@ export function finishWithBuffer(buffer: ArrayBuffer): void {
 }
 
 export function finishWithUint8Array(arr: Uint8Array): void {
-	return finishWithBuffer(arr.buffer);
+	finishWithBuffer(arr.buffer);
 }
