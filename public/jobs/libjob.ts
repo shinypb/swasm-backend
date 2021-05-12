@@ -61,7 +61,7 @@ export function requestHostService(
 	return unwrapServiceResponse(requestService(serviceType, paramArray.dataStart, paramArray.byteLength));
 }
 
-type HostServiceCallback = (id: i32, data: ArrayBuffer) => void;
+type HostServiceCallback = (data: ArrayBuffer) => void;
 const pendingCallbacks = new Map<i32, HostServiceCallback>();
 export function requestHostServiceAsync(
 	serviceType: i32,
@@ -82,7 +82,7 @@ export function asyncServiceResponseCallback(id: i32, ptr: usize, size: i32): vo
 
 	const callback = pendingCallbacks.get(id);
 	pendingCallbacks.delete(id);
-	callback(id, data.buffer);
+	callback(data.buffer);
 }
 
 export function setPayload(ptr: usize, size: i32): usize {
@@ -112,9 +112,13 @@ export function finishWithJSON(result: JSON.Value): void {
 	finishWithUint8Array(resultArray);
 }
 
-export function finishWithUint8Array(arr: Uint8Array): void {
+export function finishWithBuffer(buffer: ArrayBuffer): void {
 	const result = new Uint32Array(2);
-	result[0] = changetype<i32>(arr.dataStart);
-	result[1] = arr.buffer.byteLength;
+	result[0] = changetype<i32>(buffer);
+	result[1] = buffer.byteLength;
 	requestHostService(SVC_FINISH, result.buffer);
+}
+
+export function finishWithUint8Array(arr: Uint8Array): void {
+	return finishWithBuffer(arr.buffer);
 }

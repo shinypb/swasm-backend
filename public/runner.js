@@ -33,29 +33,41 @@ self.onmessage = async ({ data }) => {
 	function requestService(serviceType, payloadPointer, payloadLength) {
 		const serviceRequestId = nextServiceRequestId++;
 		const EMPTY_RESPONSE = [0, 0];
+		const SIZE_OF_I32 = 4;
+		const SIZE_OF_I64 = 8;
 
 		const payloadBuffer = new ArrayBuffer(payloadLength);
 		const destArray = new Uint8Array(payloadBuffer);
 		const srcArray = new Uint8Array(instance.exports.memory.buffer, payloadPointer, payloadLength);
 		destArray.set(srcArray);
 
-		// function sendAsyncResponse(buffer) { // TODO finish this, needs to return an ArrayBuffer containing i32 callback id
-		// 	const [destPointer, destLength] = syncResponse(buffer);
-		// 	setTimeout(() => {
-		// 		instance.exports.asyncServiceResponseCallback(serviceRequestId, destPointer, destLength);
-		// 	}, 0);
-		// }
+		function asyncResponse(promise) {
+			promise.then((buffer) => {
+				const srcArray = new Uint8Array(buffer);
+				const destLength = buffer.byteLength;
+				const destPointer = instance.exports.allocateBytes(destLength);
+				const destArray = new Uint8Array(instance.exports.memory.buffer, destPointer, destLength);
+				destArray.set(srcArray);
+				instance.exports.asyncServiceResponseCallback(serviceRequestId, destPointer, destLength);
+			});
+
+			const buffer = new ArrayBuffer(SIZE_OF_I32);
+			const view = new DataView(buffer);
+			view.setUint32(0, serviceRequestId);
+			return syncResponse(buffer);
+		}
 
 		function syncResponse(buffer) {
 			const srcArray = new Uint8Array(buffer);
-			const destPointer = instance.exports.allocateBytes(buffer.byteLength);
-			const destArray = new Uint8Array(instance.exports.memory.buffer, destPointer, srcArray.length);
+			const destLength = buffer.byteLength;
+			const destPointer = instance.exports.allocateBytes(destLength);
+			const destArray = new Uint8Array(instance.exports.memory.buffer, destPointer, destLength);
 			destArray.set(srcArray);
 
-			// then, we need to return a two item array containing destPointer and srcArray.length
+			// then, we need to return a two item array containing destPointer and destLength
 			const respArray = new Uint32Array(2);
 			respArray[0] = destPointer;
-			respArray[1] = srcArray.length;
+			respArray[1] = destLength;
 
 			const respDestPointer = instance.exports.allocateBytes(respArray.buffer.byteLength);
 			const respDestArray = new Uint32Array(instance.exports.memory.buffer, respDestPointer, respArray.buffer.byteLength);
@@ -92,7 +104,7 @@ self.onmessage = async ({ data }) => {
 				self.close();
 			}
 			case SVC_GET_CURRENT_TIME: {
-				const buffer = new ArrayBuffer(8);
+				const buffer = new ArrayBuffer(SIZE_OF_I64);
 				const view = new DataView(buffer);
 				view.setBigUint64(0, BigInt(Date.now()));
 				return syncResponse(buffer);
@@ -105,7 +117,10 @@ self.onmessage = async ({ data }) => {
 				return EMPTY_RESPONSE;
 			}
 			case SVC_PING: {
-				throw new Error("not implemented but soon");
+				const p = new Promise((resolve) => {
+					resolve(payloadBuffer);
+				});
+				return asyncResponse(p);
 			}
 			default:
 				throw new Error(`Unsupported service type ${serviceType}`);
