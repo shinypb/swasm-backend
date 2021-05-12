@@ -35,22 +35,41 @@ begin
 	end
 
 	# Submit job
-	uri = URI('http://localhost:8000/jobs/create')
+	DEV_MODE = ENV['DEV'] === "1"
+	BASE_URL = DEV_MODE ? "http://localhost:8000/" : "https://sheltered-brook-57323.herokuapp.com/"
+	uri = URI("#{BASE_URL}jobs/create")
 	request = Net::HTTP::Post.new(uri)
 	form_data = [
 		['payload', File.open(payload_filename)],
 		['code', File.open(code_filename)]
 	]
 	request.set_form form_data, 'multipart/form-data'
-	response = Net::HTTP.start(uri.hostname, uri.port) do |http|
+	response = Net::HTTP.start(uri.hostname, uri.port, :use_ssl => !DEV_MODE) do |http|
 	  http.request(request)
 	end
 
-	puts response.body
+	STDERR.puts response.body
 	resp = JSON.parse(response.body)
-	if resp['ok']
-		puts "If you want to run this specific job: http://localhost:8000/##{resp['jobId']}"
+	unless resp['ok']
+		STDERR.puts "Failed to create job"
+		abort
 	end
+
+	STDERR.puts "If you want to run this specific job: #{BASE_URL}##{resp['jobId']}"
+	STDERR.puts "Waiting for job to complete... (CTRL-C if you don't want to)"
+	job_id = resp['jobId']
+	status_uri = URI("#{BASE_URL}jobs/#{job_id}/status")
+	while true
+		resp = JSON.parse(Net::HTTP.get(status_uri))
+		STDERR.puts "Status: #{resp['state']}"
+		break if resp['state'] === "done"
+		sleep 3
+	end
+
+	STDERR.puts "Job output:"
+	result_uri = URI("#{BASE_URL}jobs/#{job_id}/result")
+	result = Net::HTTP.get(result_uri)
+	puts result
 
 #rescue => e
 	# puts "Error: #{e}"
