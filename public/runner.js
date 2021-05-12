@@ -31,9 +31,13 @@ self.onmessage = async ({ data }) => {
 
 	let nextServiceRequestId = 1999;
 	function requestService(serviceType, payloadPointer, payloadLength) {
-		debugger
 		const serviceRequestId = nextServiceRequestId++;
 		const EMPTY_RESPONSE = [0, 0];
+
+		const payloadBuffer = new ArrayBuffer(payloadLength);
+		const destArray = new Uint8Array(payloadBuffer);
+		const srcArray = new Uint8Array(instance.exports.memory.buffer, payloadPointer, payloadLength);
+		destArray.set(srcArray);
 
 		// function sendAsyncResponse(buffer) { // TODO finish this, needs to return an ArrayBuffer containing i32 callback id
 		// 	const [destPointer, destLength] = syncResponse(buffer);
@@ -52,34 +56,56 @@ self.onmessage = async ({ data }) => {
 			const respArray = new Uint32Array(2);
 			respArray[0] = destPointer;
 			respArray[1] = srcArray.length;
-			debugger
+
 			const respDestPointer = instance.exports.allocateBytes(respArray.buffer.byteLength);
 			const respDestArray = new Uint32Array(instance.exports.memory.buffer, respDestPointer, respArray.buffer.byteLength);
 			respDestArray.set(respArray);
 			return respDestPointer;
 		}
 
-		const GET_CURRENT_TIME = 1;
-		const DEBUG_LOG_MESSAGE = 4;
+		// takes an ArrayBuffer pointing to a two item Uint32Array consisting of a pointer and a byte length,
+		// and returns a Uint8Array containing the data that it points to.
+		function respToUint8Array(buffer) {
+			const resultArray = new Uint32Array(buffer);
+			const resultPointer = resultArray[0];
+			const resultLength = resultArray[1];
+			const srcArray = new Uint8Array(instance.exports.memory.buffer, resultPointer, resultLength);
+			const destArray = new Uint8Array(resultLength);
+			destArray.set(srcArray);
+
+			return destArray;
+		}
+
+		const SVC_FINISH = 0;
+		const SVC_GET_CURRENT_TIME = 1;
+		const SVC_HTTP_FETCH = 2;
+		const SVC_GET_RANDOM = 3;
+		const SVC_DEBUG_LOG_MESSAGE = 4;
+		const SVC_PING = 5;
 		switch (serviceType) {
-			case GET_CURRENT_TIME: {
+			case SVC_FINISH: {
+				// param is a two item i32 array consisting of a pointer and a length
+				const result = respToUint8Array(payloadBuffer);
+
+				log("Job complete; result:", result);
+				self.postMessage({ type: "complete", result });
+				self.close();
+			}
+			case SVC_GET_CURRENT_TIME: {
 				const buffer = new ArrayBuffer(8);
 				const view = new DataView(buffer);
 				view.setBigUint64(0, BigInt(Date.now()));
-				debugger
 				return syncResponse(buffer);
 			}
-			case DEBUG_LOG_MESSAGE: {
+			case SVC_DEBUG_LOG_MESSAGE: {
 				if (!DEBUG_MODE) return;
-
-				const buffer = new ArrayBuffer(payloadLength);
-				const destArray = new Uint8Array(buffer);
-				const srcArray = new Uint8Array(instance.exports.memory.buffer, payloadPointer, payloadLength);
-				destArray.set(srcArray);
 				const decoder = new TextDecoder();
-				const msg = decoder.decode(buffer);
+				const msg = decoder.decode(payloadBuffer);
 				console.log("[JOB DEBUG]", msg);
 				return EMPTY_RESPONSE;
+			}
+			case SVC_PING: {
+				throw new Error("not implemented but soon");
 			}
 			default:
 				throw new Error(`Unsupported service type ${serviceType}`);

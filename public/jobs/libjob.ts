@@ -4,9 +4,6 @@ export { JSON } from "assemblyscript-json";
 @external("env", "requestService")
 declare function requestService(serviceType: i32, payloadPointer: usize, payloadLength: i32): i32;
 
-@external("env", "finish")
-declare function finish(resultPointer: usize, resultLength: i32): void;
-
 let payload: Uint8Array;
 export function getPayload(): Uint8Array {
 	return payload;
@@ -25,6 +22,7 @@ export const SVC_GET_CURRENT_TIME = 1;
 export const SVC_HTTP_FETCH = 2;
 export const SVC_GET_RANDOM = 3;
 export const SVC_DEBUG_LOG_MESSAGE = 4;
+export const SVC_PING = 5;
 
 export function getCurrentTime(): i64 {
 	debugMessage("in getCurrentTime");
@@ -114,6 +112,9 @@ export function finishWithJSON(result: JSON.Value): void {
 	finishWithUint8Array(resultArray);
 }
 
-export function finishWithUint8Array(result: Uint8Array): void {
-	finish(result.dataStart, result.length);
+export function finishWithUint8Array(arr: Uint8Array): void {
+	const result = new Uint32Array(2);
+	result[0] = changetype<i32>(arr.dataStart);
+	result[1] = arr.buffer.byteLength;
+	requestHostService(SVC_FINISH, result.buffer);
 }
