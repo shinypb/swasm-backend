@@ -21,9 +21,15 @@ async function claimJob() {
 
 	console.log("[SCHEDULER] Claimed job", jobId);
 
-	const result = runJob({
+	const result = await runJob({
 		jobId,
 		codeUrl: `/jobs/${jobId}/code`,
 		payloadUrl: `jobs/${jobId}/payload`,
+	});
+	const formData = new FormData();
+	formData.append("result", new Blob([result], { type: "application/octet-stream"} ));
+	const resp = await fetch(`/jobs/${jobId}/finish`, {
+		method: 'POST',
+		body: formData,
 	});
 })();

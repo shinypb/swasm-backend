@@ -109,9 +109,9 @@ app.get("/jobs/claim", async (req, res) => {
 
 app.post("/jobs/:jobId/finish", upload.single("result"), async (req, res) => {
 	res.header("Content-Type", "application/json");
-
 	const jobId = req.params.jobId;
 	const resultHex = req.file.buffer.toString('hex');
+	console.log("Job", jobId, "finished with", req.file.buffer.byteLength, "bytes");
 
 	const endTime = Math.floor(Date.now() / 1000);
 	const db = await getDatabaseConnection();
@@ -140,6 +140,36 @@ app.get("/jobs/:jobId/payload", async (req, res) => {
 	res.header("content-type", "application/octet-stream");
 	const job = await getJob(jobId);
 	res.send(job.payload);
+});
+
+app.get("/jobs/:jobId/status", async (req, res) => {
+	const { jobId } = req.params;
+
+	const job = await getJob(jobId);
+
+	let state;
+	if (job.end_ts > 0) {
+		state = 'done';
+	} else if (job.start_ts > 0) {
+		state = 'running';
+	} else {
+		state = 'waiting';
+	}
+
+	res.header("content-type", "application/json");
+	res.send(JSON.stringify({ ok: true, state }));
+});
+
+app.get("/jobs/:jobId/result", async (req, res) => {
+	const { jobId } = req.params;
+
+	const job = await getJob(jobId);
+	if (job.end_ts === 0) {
+		return res.send(JSON.stringify({ ok: false, error: 'not_finished' }));
+	}
+
+	res.header("content-type", "application/octet-stream");
+	res.send(job.result);
 });
 
 app.listen(port, () => {
