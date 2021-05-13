@@ -12,8 +12,16 @@ async function claimJob() {
 
 (() => {
 	window.onhashchange = () => location.reload();
+	const START_TIME_MS = Date.now();
+	const MAX_RUNTIME_MS = 10 * 60 * 1000;
 
 	async function claimAndRunJob() {
+		if (Date.now() - START_TIME_MS > MAX_RUNTIME_MS) {
+			console.info("[SCHEDULER] Reloading because we've been running for a while");
+			location.reload();
+			return;
+		}
+
 		const jobId = await claimJob();
 		if (!jobId) {
 			console.error("[SCHEDULER] No jobs available, will check again in a bit");
@@ -35,8 +43,10 @@ async function claimJob() {
 			body: formData,
 		});
 
-		console.log("[SCHEDULER] Will look for another job shortly");
-		setTimeout(claimAndRunJob, 5000);
+		if (!location.hash) {
+			console.log("[SCHEDULER] Will look for another job shortly");
+			setTimeout(claimAndRunJob, 5000);
+		}
 	}
 
 	claimAndRunJob();
